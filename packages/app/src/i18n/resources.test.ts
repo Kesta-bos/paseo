@@ -102,7 +102,7 @@ function findUntranslatedConnectionErrors(): string[] {
 }
 
 describe("translation resources", () => {
-  it("keeps UN official language keys in sync with English", () => {
+  it("keeps all supported locale keys in sync with English", () => {
     const englishKeys = flattenKeys(en).sort();
     expect(flattenKeys(ar).sort()).toEqual(englishKeys);
     expect(flattenKeys(es).sort()).toEqual(englishKeys);
@@ -112,7 +112,7 @@ describe("translation resources", () => {
     expect(flattenKeys(zhCN).sort()).toEqual(englishKeys);
   });
 
-  it("keeps non-English UN official languages translated beyond fallback labels", () => {
+  it("keeps non-English locales translated beyond fallback labels", () => {
     const totalStrings = Object.keys(flattenStrings(en)).length;
     const maxFallbackStrings = Math.floor(totalStrings * 0.25);
     expect(countMatchingEnglishStrings(ar)).toBeLessThan(maxFallbackStrings);
