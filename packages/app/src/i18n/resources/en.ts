@@ -1413,6 +1413,7 @@ export const en = {
           en: "English",
           es: "Spanish",
           fr: "French",
+          ko: "Korean",
           ru: "Russian",
           zhCN: "Simplified Chinese",
         },

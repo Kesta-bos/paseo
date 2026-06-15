@@ -8,12 +8,13 @@ import {
 
 describe("parseAppLanguage", () => {
   it("accepts system and all UN official language locales", () => {
-    expect(["system", "ar", "en", "es", "fr", "ru", "zh-CN"].map(parseAppLanguage)).toEqual([
+    expect(["system", "ar", "en", "es", "fr", "ko", "ru", "zh-CN"].map(parseAppLanguage)).toEqual([
       "system",
       "ar",
       "en",
       "es",
       "fr",
+      "ko",
       "ru",
       "zh-CN",
     ]);
@@ -24,13 +25,14 @@ describe("parseAppLanguage", () => {
     expect(parseAppLanguage(null)).toBeNull();
   });
 
-  it("offers system plus the six UN official languages", () => {
+  it("offers system plus the six UN official languages and Korean", () => {
     expect(LANGUAGE_OPTIONS.map((option) => option.value)).toEqual([
       "system",
       "ar",
       "en",
       "es",
       "fr",
+      "ko",
       "ru",
       "zh-CN",
     ]);
@@ -81,6 +83,7 @@ describe("resolveSupportedLocale", () => {
     expect(resolveSupportedLocale("en", ["zh-CN"])).toBe("en");
     expect(resolveSupportedLocale("es", ["en-US"])).toBe("es");
     expect(resolveSupportedLocale("fr", ["en-US"])).toBe("fr");
+    expect(resolveSupportedLocale("ko", ["en-US"])).toBe("ko");
     expect(resolveSupportedLocale("ru", ["en-US"])).toBe("ru");
     expect(resolveSupportedLocale("zh-CN", ["en-US"])).toBe("zh-CN");
   });
@@ -91,6 +94,11 @@ describe("resolveSupportedLocale", () => {
     expect(resolveSupportedLocale("system", ["es-MX"])).toBe("es");
     expect(resolveSupportedLocale("system", ["fr-CA"])).toBe("fr");
     expect(resolveSupportedLocale("system", ["ru-RU"])).toBe("ru");
+  });
+
+  it("maps Korean system locales", () => {
+    expect(resolveSupportedLocale("system", ["ko"])).toBe("ko");
+    expect(resolveSupportedLocale("system", ["ko-KR"])).toBe("ko");
   });
 
   it("keeps English when Spanish is a secondary system language", () => {

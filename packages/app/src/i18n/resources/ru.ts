@@ -1434,6 +1434,7 @@ export const ru: TranslationResources = {
           en: "English",
           es: "Español",
           fr: "Français",
+          ko: "한국어",
           ru: "Русский",
           zhCN: "中文",
         },

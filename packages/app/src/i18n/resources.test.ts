@@ -5,6 +5,7 @@ import { ar } from "./resources/ar";
 import { en } from "./resources/en";
 import { es } from "./resources/es";
 import { fr } from "./resources/fr";
+import { ko } from "./resources/ko";
 import { ru } from "./resources/ru";
 import { zhCN } from "./resources/zh-CN";
 
@@ -106,6 +107,7 @@ describe("translation resources", () => {
     expect(flattenKeys(ar).sort()).toEqual(englishKeys);
     expect(flattenKeys(es).sort()).toEqual(englishKeys);
     expect(flattenKeys(fr).sort()).toEqual(englishKeys);
+    expect(flattenKeys(ko).sort()).toEqual(englishKeys);
     expect(flattenKeys(ru).sort()).toEqual(englishKeys);
     expect(flattenKeys(zhCN).sort()).toEqual(englishKeys);
   });
@@ -116,6 +118,7 @@ describe("translation resources", () => {
     expect(countMatchingEnglishStrings(ar)).toBeLessThan(maxFallbackStrings);
     expect(countMatchingEnglishStrings(es)).toBeLessThan(maxFallbackStrings);
     expect(countMatchingEnglishStrings(fr)).toBeLessThan(maxFallbackStrings);
+    expect(countMatchingEnglishStrings(ko)).toBeLessThan(maxFallbackStrings);
     expect(countMatchingEnglishStrings(ru)).toBeLessThan(maxFallbackStrings);
   });
 
@@ -123,6 +126,7 @@ describe("translation resources", () => {
     expect(findInterpolationMismatches(ar)).toEqual([]);
     expect(findInterpolationMismatches(es)).toEqual([]);
     expect(findInterpolationMismatches(fr)).toEqual([]);
+    expect(findInterpolationMismatches(ko)).toEqual([]);
     expect(findInterpolationMismatches(ru)).toEqual([]);
     expect(findInterpolationMismatches(zhCN)).toEqual([]);
   });
