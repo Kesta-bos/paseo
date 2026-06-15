@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { fork } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
+import { assertAbsolutePath, isSameOrDescendantPath } from "../server/path-utils.js";
 import type { TerminalState } from "@getpaseo/protocol/messages";
 import type { TerminalActivity, TerminalActivityState } from "@getpaseo/protocol/terminal-activity";
 import type {
@@ -115,6 +116,7 @@ function cloneTerminalInfo(info: WorkerTerminalInfo): WorkerTerminalInfo {
     id: info.id,
     name: info.name,
     cwd: info.cwd,
+    ...(info.workspaceId ? { workspaceId: info.workspaceId } : {}),
     ...(info.title ? { title: info.title } : {}),
     activity: info.activity,
   };
@@ -177,6 +179,7 @@ export function createWorkerTerminalManager(
         id: record.info.id,
         name: record.info.name,
         cwd: record.info.cwd,
+        ...(record.info.workspaceId ? { workspaceId: record.info.workspaceId } : {}),
         ...(record.info.title ? { title: record.info.title } : {}),
         activity: record.activity,
       });
@@ -218,6 +221,9 @@ export function createWorkerTerminalManager(
       },
       get cwd() {
         return record.info.cwd;
+      },
+      get workspaceId() {
+        return record.info.workspaceId;
       },
       send(message: ClientMessage): void {
         if (message.type === "resize") {
@@ -288,11 +294,11 @@ export function createWorkerTerminalManager(
         sendBestEffortRequest({ type: "setActivity", terminalId: record.info.id, state });
       },
       clearActivityAttention(): boolean {
-        if (record.activity?.state !== "attention") {
+        if (record.activity?.attentionReason == null) {
           return false;
         }
-        record.activity = { state: "idle", changedAt: Date.now() };
-        sendBestEffortRequest({ type: "setActivity", terminalId: record.info.id, state: "idle" });
+        record.activity = { state: record.activity.state, changedAt: Date.now() };
+        sendBestEffortRequest({ type: "clearAttention", terminalId: record.info.id });
         return true;
       },
       getSize(): { rows: number; cols: number } {
@@ -498,6 +504,7 @@ export function createWorkerTerminalManager(
         id: terminal.id,
         name: terminal.name,
         cwd: terminal.cwd,
+        ...(terminal.workspaceId ? { workspaceId: terminal.workspaceId } : {}),
         ...(terminal.title ? { title: terminal.title } : {}),
         activity: terminal.activity,
       })),
@@ -618,16 +625,41 @@ export function createWorkerTerminalManager(
     });
   }
 
-  function toSessions(terminals: WorkerTerminalInfo[]): TerminalSession[] {
-    return terminals
-      .map((terminal) => recordsById.get(terminal.id)?.session)
-      .filter((session): session is TerminalSession => Boolean(session));
-  }
-
   return {
-    async getTerminals(cwd: string): Promise<TerminalSession[]> {
-      const result = (await sendRequest({ type: "getTerminals", cwd })) as WorkerTerminalInfo[];
-      return toSessions(result);
+    async getTerminals(
+      cwd: string,
+      options?: { workspaceId?: string },
+    ): Promise<TerminalSession[]> {
+      assertAbsolutePath(cwd);
+
+      // Served from the local mirror, exactly like every other parent read.
+      // Terminals are bucketed by exact cwd, but an agent can open a terminal in
+      // a subdirectory of the workspace. A query for the workspace root must
+      // surface those too, so aggregate every bucket at or below `cwd`.
+      const sessions: TerminalSession[] = [];
+      for (const [bucketCwd, terminalIds] of terminalIdsByCwd) {
+        if (!isSameOrDescendantPath(cwd, bucketCwd)) {
+          continue;
+        }
+        for (const terminalId of terminalIds) {
+          const session = recordsById.get(terminalId)?.session;
+          if (session) {
+            sessions.push(session);
+          }
+        }
+      }
+
+      // When the query carries a workspaceId, two workspaces sharing a cwd must
+      // not see each other's terminals. Exclude sessions owned by a different
+      // workspace; keep sessions without an owner (COMPAT: created by clients
+      // that predate terminal workspace ownership).
+      if (options?.workspaceId !== undefined) {
+        return sessions.filter(
+          (session) =>
+            session.workspaceId === undefined || session.workspaceId === options.workspaceId,
+        );
+      }
+      return sessions;
     },
 
     async createTerminal(options: WorkerCreateTerminalOptions): Promise<TerminalSession> {
@@ -721,10 +753,10 @@ export function createWorkerTerminalManager(
 
     async clearTerminalAttention(id: string): Promise<boolean> {
       const record = recordsById.get(id);
-      if (!record || record.activity?.state !== "attention") {
+      if (!record || record.activity?.attentionReason == null) {
         return false;
       }
-      await sendRequest({ type: "setActivity", terminalId: id, state: "idle" });
+      await sendRequest({ type: "clearAttention", terminalId: id });
       return true;
     },
 

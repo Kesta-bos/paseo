@@ -205,7 +205,7 @@ export const en = {
     },
   },
   sessions: {
-    title: "Sessions",
+    title: "Agent history",
     empty: "No sessions yet",
     actions: {
       loadMore: "Load more",
@@ -354,9 +354,12 @@ export const en = {
         retry: "Retry",
         refresh: "Refresh files",
         refreshing: "Refreshing files",
+        hideHiddenFiles: "Hide hidden files",
+        showHiddenFiles: "Show hidden files",
       },
       empty: {
         noFiles: "No files",
+        noVisibleFiles: "No visible files",
       },
       states: {
         unavailable: "Workspace is unavailable",
@@ -463,6 +466,8 @@ export const en = {
         splitDown: "Split pane down",
         terminalProfilesMenu: "Terminal profiles",
         editTerminalProfiles: "Edit profiles…",
+        pinTarget: "Pin",
+        unpinTarget: "Unpin",
       },
       explorer: {
         open: "Open explorer",
@@ -749,12 +754,13 @@ export const en = {
     },
     actions: {
       addProject: "Add project",
+      newWorkspace: "New workspace",
       home: "Home",
       settings: "Settings",
       closeSidebar: "Close sidebar",
     },
     sections: {
-      sessions: "Sessions",
+      sessions: "History",
     },
     worktreeSetup: {
       title: "Set up worktree scripts",
@@ -812,6 +818,12 @@ export const en = {
         hideConfirm: "Hide",
         cancel: "Cancel",
       },
+      deleteWorktreePrompt: {
+        title: "Archive workspace",
+        message: "Also remove the worktree from disk?",
+        keep: "Keep on disk",
+        delete: "Delete",
+      },
       rename: {
         title: "Rename workspace",
         submit: "Rename",
@@ -830,6 +842,17 @@ export const en = {
   newWorkspace: {
     title: "New workspace",
     create: "Create",
+    backing: {
+      local: "Local",
+      worktree: "New worktree",
+      label: "Isolation",
+    },
+    fields: {
+      project: "Project",
+      base: "Base",
+      baseNotApplicable: "Not applicable",
+    },
+    titlePlaceholder: "Title (optional)",
     errors: {
       hostDisconnected: "Host is not connected",
       createWorktreeFailed: "Failed to create worktree",

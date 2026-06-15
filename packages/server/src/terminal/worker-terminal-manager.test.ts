@@ -523,6 +523,55 @@ it("lists subdirectory terminals when querying the workspace root", async () => 
   expect(rootTerminals.map((terminal) => terminal.id)).toEqual([created.id]);
 });
 
+it("lists terminals locally without waiting on the worker", async () => {
+  const worker = new FakeTerminalWorker();
+  manager = createWorkerTerminalManager({
+    requestTimeoutMs: 5,
+    forkWorker: () => worker,
+  });
+
+  worker.emitWorkerMessage({
+    type: "terminalCreated",
+    terminal: {
+      id: "terminal-root",
+      name: "Shell",
+      cwd: "/workspace",
+      activity: { state: "idle", changedAt: 0 },
+    },
+    state: createTerminalState(),
+  });
+  worker.emitWorkerMessage({
+    type: "terminalCreated",
+    terminal: {
+      id: "terminal-subdir",
+      name: "Shell",
+      cwd: "/workspace/apps/mobile",
+      activity: { state: "idle", changedAt: 0 },
+    },
+    state: createTerminalState(),
+  });
+
+  // The fake worker never answers requests, so a round-trip would reject at the
+  // 5ms timeout. A local mirror read must resolve regardless.
+  const terminals = await manager.getTerminals("/workspace");
+
+  expect(terminals.map((terminal) => terminal.id).sort()).toEqual([
+    "terminal-root",
+    "terminal-subdir",
+  ]);
+  expect(worker.sentMessages.some((message) => message.type === "getTerminals")).toBe(false);
+});
+
+it("rejects non-absolute cwd in getTerminals", async () => {
+  const worker = new FakeTerminalWorker();
+  manager = createWorkerTerminalManager({
+    requestTimeoutMs: 5,
+    forkWorker: () => worker,
+  });
+
+  await expect(manager.getTerminals("relative/path")).rejects.toThrow("cwd must be absolute path");
+});
+
 it("surfaces worker activity changes via getActivity, onActivityChange, and terminalsChanged", async () => {
   const worker = new FakeTerminalWorker();
   manager = createWorkerTerminalManager({
@@ -616,7 +665,7 @@ it("sets terminal activity through a worker request", async () => {
   await expect(result).resolves.toBe(true);
 });
 
-it("clears terminal attention through a worker activity update", async () => {
+it("clears terminal attention through a worker request", async () => {
   const worker = new FakeTerminalWorker();
   manager = createWorkerTerminalManager({
     requestTimeoutMs: 50,
@@ -628,19 +677,16 @@ it("clears terminal attention through a worker activity update", async () => {
       id: "terminal-a",
       name: "Shell",
       cwd: "/workspace",
-      activity: { state: "attention", changedAt: 1000 },
+      activity: { state: "idle", attentionReason: "finished", changedAt: 1000 },
     },
     state: createTerminalState(),
   });
 
   const result = manager.clearTerminalAttention("terminal-a");
-  const request = worker.sentMessages.find(
-    (message) => message.type === "setActivity" && message.state === "idle",
-  );
+  const request = worker.sentMessages.find((message) => message.type === "clearAttention");
   expect(request).toMatchObject({
-    type: "setActivity",
+    type: "clearAttention",
     terminalId: "terminal-a",
-    state: "idle",
   });
   if (!request) {
     throw new Error("attention clear request not sent");
@@ -648,6 +694,41 @@ it("clears terminal attention through a worker activity update", async () => {
   worker.emitWorkerMessage({ type: "response", requestId: request.requestId, ok: true });
 
   await expect(result).resolves.toBe(true);
+});
+
+it("clears finished attention on a real terminal", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "worker-terminal-manager-attention-"));
+  temporaryDirs.push(cwd);
+  manager = createWorkerTerminalManager();
+  const session = trackTerminal(
+    await manager.createTerminal({
+      cwd,
+      ...nodeTerminalCommand("setInterval(() => {}, 1000);"),
+    }),
+  );
+
+  // A working -> idle transition is how the real tracker records a "finished"
+  // attention: { state: "idle", attentionReason: "finished" }. The state is
+  // never literally "attention", so a clear that checks state === "attention"
+  // would never fire — the bug this reproduces.
+  await manager.setTerminalActivity(session.id, "working");
+  await manager.setTerminalActivity(session.id, "idle");
+  await waitForCondition(
+    () => manager?.getTerminal(session.id)?.getActivity()?.attentionReason === "finished",
+    5000,
+  );
+
+  const cleared = await manager.clearTerminalAttention(session.id);
+
+  expect(cleared).toBe(true);
+  await waitForCondition(
+    () => manager?.getTerminal(session.id)?.getActivity()?.attentionReason == null,
+    5000,
+  );
+  expect(manager.getTerminal(session.id)?.getActivity()).toEqual({
+    state: "idle",
+    changedAt: expect.any(Number),
+  });
 });
 
 it("removes worker terminals after killAndWait", async () => {

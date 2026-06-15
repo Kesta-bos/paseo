@@ -42,7 +42,7 @@ import invariant from "tiny-invariant";
 import { SidebarMenuToggle } from "@/components/headers/menu-header";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { ScreenHeader } from "@/components/headers/screen-header";
-import { BranchSwitcher } from "@/components/branch-switcher";
+import { ScreenTitle } from "@/components/headers/screen-title";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Shortcut } from "@/components/ui/shortcut";
 import type { ShortcutKey } from "@/utils/format-shortcut";
@@ -185,6 +185,8 @@ import {
   resolveTerminalProfiles,
 } from "@getpaseo/protocol/terminal-profiles";
 import { getProviderIcon } from "@/components/provider-icons";
+import { useLaunchIntentStore } from "@/workspace-pins/launch-intent-store";
+import { runPinnedTabTarget, type TabTargetHandlers } from "@/workspace-pins/run";
 import {
   createWorkspaceFileTabTarget,
   normalizeWorkspaceFileLocation,
@@ -1183,7 +1185,6 @@ interface WorkspaceHeaderTitleBarProps {
   subtitle: string;
   showSubtitle: boolean;
   currentBranchName: string | null;
-  isGitCheckout: boolean;
   normalizedServerId: string;
   normalizedWorkspaceId: string;
   workspaceScripts: WorkspaceDescriptor["scripts"];
@@ -1219,7 +1220,6 @@ function WorkspaceHeaderTitleBar({
   subtitle,
   showSubtitle,
   currentBranchName,
-  isGitCheckout,
   normalizedServerId,
   normalizedWorkspaceId,
   workspaceScripts,
@@ -1256,13 +1256,7 @@ function WorkspaceHeaderTitleBar({
         </View>
       ) : (
         <View style={styles.headerTitleTextGroup}>
-          <BranchSwitcher
-            currentBranchName={currentBranchName}
-            title={title}
-            serverId={normalizedServerId}
-            workspaceId={normalizedWorkspaceId}
-            isGitCheckout={isGitCheckout}
-          />
+          <ScreenTitle testID="workspace-header-title">{title}</ScreenTitle>
           {showSubtitle ? (
             <Text
               testID="workspace-header-subtitle"
@@ -1726,6 +1720,37 @@ function useWorkspaceCheckoutStatus(input: {
   return { checkoutQuery, isCheckoutStatusLoading };
 }
 
+interface PinnedTabLaunchConsumerInput {
+  serverId: string;
+  persistenceKey: string | null;
+  isRouteFocused: boolean;
+  handlers: TabTargetHandlers;
+}
+
+function usePinnedTabLaunchConsumer({
+  serverId,
+  persistenceKey,
+  isRouteFocused,
+  handlers,
+}: PinnedTabLaunchConsumerInput) {
+  const { config } = useDaemonConfig(serverId);
+  const profiles = useMemo(
+    () => resolveTerminalProfiles(config?.terminalProfiles),
+    [config?.terminalProfiles],
+  );
+  const pending = useLaunchIntentStore((state) => state.pending);
+
+  useEffect(() => {
+    if (!persistenceKey || !isRouteFocused || pending?.workspaceKey !== persistenceKey) {
+      return;
+    }
+    const target = useLaunchIntentStore.getState().consume(persistenceKey);
+    if (target) {
+      runPinnedTabTarget(target, profiles, handlers);
+    }
+  }, [handlers, isRouteFocused, pending, persistenceKey, profiles]);
+}
+
 function WorkspaceScreenContent({
   serverId,
   workspaceId,
@@ -1798,6 +1823,7 @@ function WorkspaceScreenContent({
       deriveWorkspaceAgentVisibility({
         sessionAgents: state.sessions[normalizedServerId]?.agents,
         agentDetails: state.sessions[normalizedServerId]?.agentDetails,
+        workspaceId: normalizedWorkspaceId,
         workspaceDirectory,
       }),
     workspaceAgentVisibilityEqual,
@@ -2570,6 +2596,28 @@ function WorkspaceScreenContent({
     },
     [openWorkspaceTabFocused, persistenceKey],
   );
+
+  const pinnedTabHandlers = useMemo<TabTargetHandlers>(
+    () => ({
+      createDraft: handleCreateDraftTab,
+      createTerminal: handleCreateTerminal,
+      createBrowser: handleCreateBrowserTab,
+      createTerminalWithProfile: handleCreateTerminalWithProfile,
+    }),
+    [
+      handleCreateBrowserTab,
+      handleCreateDraftTab,
+      handleCreateTerminal,
+      handleCreateTerminalWithProfile,
+    ],
+  );
+
+  usePinnedTabLaunchConsumer({
+    serverId: normalizedServerId,
+    persistenceKey,
+    isRouteFocused,
+    handlers: pinnedTabHandlers,
+  });
 
   useDesktopBrowserNewTabRequests({
     enabled: Boolean(persistenceKey),
@@ -3637,7 +3685,6 @@ function WorkspaceScreenContent({
                 subtitle={workspaceHeaderSubtitle}
                 showSubtitle={shouldShowWorkspaceHeaderSubtitle}
                 currentBranchName={currentBranchName}
-                isGitCheckout={isGitCheckout}
                 normalizedServerId={normalizedServerId}
                 normalizedWorkspaceId={normalizedWorkspaceId}
                 workspaceScripts={workspaceScripts}

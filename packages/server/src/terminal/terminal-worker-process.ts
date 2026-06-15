@@ -66,6 +66,7 @@ function toTerminalInfo(session: TerminalSession): WorkerTerminalInfo {
     id: session.id,
     name: session.name,
     cwd: session.cwd,
+    ...(session.workspaceId ? { workspaceId: session.workspaceId } : {}),
     ...(session.getTitle() ? { title: session.getTitle() } : {}),
     activity: session.getActivity(),
   };
@@ -240,17 +241,6 @@ async function handleCreateTerminalRequest(message: TerminalCreateRequest): Prom
 
 async function handleRequest(message: TerminalWorkerRequest): Promise<void> {
   switch (message.type) {
-    case "getTerminals": {
-      const terminals = await manager.getTerminals(message.cwd);
-      sendToParent({
-        type: "response",
-        requestId: message.requestId,
-        ok: true,
-        result: terminals.map(toTerminalInfo),
-      });
-      return;
-    }
-
     case "createTerminal": {
       await enqueueCreateTerminalRequest(message);
       return;
@@ -264,6 +254,12 @@ async function handleRequest(message: TerminalWorkerRequest): Promise<void> {
 
     case "setActivity": {
       await manager.setTerminalActivity(message.terminalId, message.state);
+      sendToParent({ type: "response", requestId: message.requestId, ok: true });
+      return;
+    }
+
+    case "clearAttention": {
+      await manager.clearTerminalAttention(message.terminalId);
       sendToParent({ type: "response", requestId: message.requestId, ok: true });
       return;
     }
